@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Стандарт СМР ММ 3.1</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .filters { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+    select, input, button { padding: 6px 10px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
+    th { background-color: #e9ecef; }
+    .highlight { background-color: yellow; }
+    .image-preview {
+      display: none;
+      position: absolute;
+      border: 1px solid #ccc;
+      background: white;
+      padding: 4px;
+      z-index: 1000;
+      max-width: 200px;
+    }
+    .app-link { color: #0066cc; text-decoration: underline; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Стандарт СМР ММ 3.1 (v3.12)</h1>
+
+  <div class="filters">
+    <div class="filter-row">
+      <select id="typeFilter"><option value="">Тип объекта</option><option>БО</option><option>РД</option></select>
+      <select id="clusterFilter"><option value="">Кластер</option><option>Город</option><option>Мегаполис</option></select>
+      <select id="rtoFilter"><option value="">РТО</option><option>&lt;10 млн руб.</option><option>≥10 млн руб.</option></select>
+      <select id="sectionFilter"><option value="">Раздел</option></select>
+    </div>
+    <div class="filter-row">
+      <input type="text" id="searchInput" placeholder="Поиск по тексту..." style="flex:1;"/>
+      <button onclick="resetFilters()">Сбросить</button>
+      <button onclick="exportToExcel()">Экспорт в Excel</button>
+    </div>
+  </div>
+
+  <table id="resultsTable">
+    <thead>
+      <tr>
+        <th>Путь требования</th>
+        <th>Зона применения</th>
+        <th>Техническое решение</th>
+        <th>Приложения</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+  <div class="image-preview" id="imagePreview"></div>
+
+  <script>
+    // Пример данных — замените на полный массив из Excel
+    const standardsData = [
+      {
+        id: "1.1",
+        section: "Фасад",
+        subsection: "Остекление",
+        detail: "Тамбур",
+        zones: ["Тамбур"],
+        solution: "Двухкамерный стеклопакет 4-16-4-16-4.",
+        applies: 1,
+        type: "БО",
+        cluster: "Мегаполис",
+        rto: "≥10 млн руб.",
+        attachments: ["Приложение 7", "Приложение 23"],
+        imageUrl: "https://example.com/fasad.jpg"
+      },
+      // ... остальные записи
+    ];
+
+    let filteredData = [...standardsData];
+
+    // Уникальные значения для фильтров
+    function populateSelect(selector, key) {
+      const values = [...new Set(standardsData.map(item => item[key]).filter(v => v))];
+      const sel = document.getElementById(selector);
+      values.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        sel.appendChild(opt);
+      });
+    }
+
+    // Инициализация фильтров
+    populateSelect('sectionFilter', 'section');
+
+    // Фильтрация
+    function applyFilters() {
+      const type = document.getElementById('typeFilter').value;
+      const cluster = document.getElementById('clusterFilter').value;
+      const rto = document.getElementById('rtoFilter').value;
+      const section = document.getElementById('sectionFilter').value;
+      const searchText = document.getElementById('searchInput').value.toLowerCase();
+
+      filteredData = standardsData.filter(item => {
+        if (type && item.type !== type) return false;
+        if (cluster && item.cluster !== cluster) return false;
+        if (rto && item.rto !== rto) return false;
+        if (section && item.section !== section) return false;
+        if (searchText) {
+          const fullText = `${item.section} ${item.subsection} ${item.detail} ${item.solution} ${item.zones.join(' ')}`.toLowerCase();
+          return fullText.includes(searchText);
+        }
+        return true;
+      });
+
+      renderTable();
+    }
+
+    // Подсветка текста
+    function highlightText(text, query) {
+      if (!query) return text;
+      const regex = new RegExp(`(${query})`, 'gi');
+      return text.replace(regex, '<mark class="highlight">$1</mark>');
+    }
+
+    // Отображение таблицы
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      filteredData.forEach(item => {
+        const row = document.createElement('tr');
+
+        // Путь требования
+        const path = `${item.id} ${item.section} → ${item.subsection} → ${item.detail}`;
+        const pathCell = document.createElement('td');
+        pathCell.innerHTML = highlightText(path, document.getElementById('searchInput').value);
+
+        // Зона применения
+        const zoneCell = document.createElement('td');
+        zoneCell.textContent = item.zones.join(', ');
+
+        // Техническое решение
+        const solCell = document.createElement('td');
+        solCell.innerHTML = highlightText(item.solution, document.getElementById('searchInput').value);
+
+        // Приложения
+        const appCell = document.createElement('td');
+        if (item.attachments) {
+          item.attachments.forEach(app => {
+            const link = document.createElement('span');
+            link.className = 'app-link';
+            link.textContent = app + ' ';
+            link.onclick = () => window.open(`приложения/${app.replace(/\s+/g, '_')}.pdf`, '_blank');
+            appCell.appendChild(link);
+          });
+        }
+
+        // Превью изображения
+        if (item.imageUrl) {
+          solCell.title = 'Наведите для превью';
+          solCell.onmouseenter = (e) => {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = `<img src="${item.imageUrl}" style="max-width:100%;">`;
+            preview.style.display = 'block';
+            preview.style.left = e.pageX + 10 + 'px';
+            preview.style.top = e.pageY + 10 + 'px';
+          };
+          solCell.onmouseleave = () => document.getElementById('imagePreview').style.display = 'none';
+        }
+
+        row.appendChild(pathCell);
+        row.appendChild(zoneCell);
+        row.appendChild(solCell);
+        row.appendChild(appCell);
+        tbody.appendChild(row);
+      });
+    }
+
+    // Экспорт в Excel
+    function exportToExcel() {
+      const ws = XLSX.utils.json_to_sheet(filteredData.map(r => ({
+        "Путь": `${r.id} ${r.section} → ${r.subsection} → ${r.detail}`,
+        "Зоны": r.zones.join(', '),
+        "Решение": r.solution,
+        "Приложения": r.attachments?.join(', ') || ''
+      })));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Стандарт");
+      XLSX.writeFile(wb, "Стандарт_СМР_ММ_3.1_результаты.xlsx");
+    }
+
+    // Сброс фильтров
+    function resetFilters() {
+      document.querySelectorAll('select, input').forEach(el => el.value = '');
+      filteredData = [...standardsData];
+      renderTable();
+    }
+
+    // События
+    ['typeFilter', 'clusterFilter', 'rtoFilter', 'sectionFilter', 'searchInput'].forEach(id => {
+      document.getElementById(id).addEventListener('input', applyFilters);
+    });
+
+    // Первичный рендер
+    renderTable();
+  </script>
+</body>
+</html>
